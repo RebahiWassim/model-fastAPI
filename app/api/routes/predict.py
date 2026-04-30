@@ -43,7 +43,6 @@ router = APIRouter()
 _bone_model  = None
 _colon_model = None
 
-PREDICTION_TYPE = "1D"
 ALLOWED_TYPES   = {"image/png", "image/jpeg", "image/bmp", "image/jpg"}
 
 
@@ -135,8 +134,7 @@ async def predict_bone(file: UploadFile = File(...)):
 
         return JSONResponse(content={
             "status":      "success",
-            "cancer_type": "bone",
-            "type":        PREDICTION_TYPE,
+            "type":        "1D" ,
             "prediction":  pred_class,
             "class_index": class_index,
             "confidence":  confidence,
@@ -209,8 +207,7 @@ async def predict_colon(file: UploadFile = File(...)):
 
         return JSONResponse(content={
             "status":      "success",
-            "cancer_type": "colon",
-            "type":        PREDICTION_TYPE,
+            "type":        "1D",
             "prediction":  pred_class,
             "class_index": class_index,
             "confidence":  confidence,
