@@ -91,20 +91,20 @@ class ColonCancerModel(nn.Module):
         return self.backbone(x)
 
 
-def load_colon_model(path: str, device: torch.device) -> ColonCancerModel:
-    """Load a ColonCancerModel checkpoint from *path* onto *device*."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Model not found at {path}")
-
-    model = ColonCancerModel(num_classes=5)
-    state_dict = torch.load(path, map_location=device)
-
-    # Strip DataParallel prefix if present
-    if list(state_dict.keys())[0].startswith("module."):
-        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-
-    model.load_state_dict(state_dict, strict=True)
+def load_colon_model(model_path: str, device):
+    model = ColonCancerModel()  # adapte selon ton constructeur
+    
+    state_dict = torch.load(model_path, map_location=device)
+    
+    # Remap : ajoute le préfixe "backbone." si absent
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if not k.startswith("backbone."):
+            new_state_dict[f"backbone.{k}"] = v
+        else:
+            new_state_dict[k] = v
+    
+    model.load_state_dict(new_state_dict, strict=True)
     model.to(device)
     model.eval()
-    logger.info("ColonCancerModel loaded on %s", device)
     return model

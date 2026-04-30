@@ -2,7 +2,7 @@
 predict.py — FastAPI router with prediction endpoints for all cancer types.
 
   POST /bone/predict    → BoneCancerModel  (EfficientNet-B0, 2 classes)
-  POST /colon/predict   → ColonCancerModel (ViT-Base,        5 classes)
+  POST /colon/predict   → ColonCancerModel (ViT-Base,        2 colon classes)
 """
 
 import io
@@ -134,7 +134,7 @@ async def predict_bone(file: UploadFile = File(...)):
                 pass
 
         return JSONResponse(content={
-            "status":     "success",
+            "status":      "success",
             "cancer_type": "bone",
             "type":        PREDICTION_TYPE,
             "prediction":  pred_class,
@@ -159,19 +159,23 @@ async def predict_bone(file: UploadFile = File(...)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Colon / Lung Cancer endpoint
+#  Colon Cancer endpoint
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Indices that belong to the colon subtypes (used for colon-specific uncertainty)
-_COLON_INDICES = {0, 1}   # Colon Adenocarcinoma, Colon Benign
+# Only the two colon subtypes — lung indices are intentionally excluded
+# Adjust these indices to match your COLON_CLASS_NAMES order:
+#   e.g. 0 = "Colon Adenocarcinoma"  ← high risk
+#        1 = "Colon Benign Tissue"
+_COLON_INDICES = {0, 1}   # colon classes only (no lung)
 _HIGH_RISK_IDX = 0        # Colon Adenocarcinoma
 
 
 @router.post("/colon/predict", tags=["colon-cancer"])
 async def predict_colon(file: UploadFile = File(...)):
     """
-    Classify a histopathology image into one of 5 colon/lung cancer subtypes
-    using ViT-Base. Uncertainty is reported over the two colon classes only.
+    Classify a histopathology image into one of the 2 colon cancer subtypes
+    using ViT-Base. Lung classes are excluded from the response.
+    Uncertainty is computed over the two colon classes only.
     """
     _validate_upload(file)
 
@@ -189,21 +193,22 @@ async def predict_colon(file: UploadFile = File(...)):
             logits = _colon_model(tensor)
             probs  = torch.softmax(logits, dim=1)[0].cpu().numpy()
 
-        class_index = int(np.argmax(probs))
+        # Restrict prediction to colon classes only
+        colon_indices = sorted(_COLON_INDICES)
+        colon_probs   = probs[colon_indices]
+        colon_probs   = colon_probs / colon_probs.sum()   # re-normalize to 100 %
+
+        local_idx   = int(np.argmax(colon_probs))         # index within colon subset
+        class_index = colon_indices[local_idx]            # original model index
         pred_class  = COLON_CLASS_NAMES[class_index]
-        confidence  = round(float(probs[class_index]), 4)
+        confidence  = round(float(colon_probs[local_idx]), 4)
         uncertainty = _uncertainty(probs, subset_indices=_COLON_INDICES)
         is_high_risk = class_index == _HIGH_RISK_IDX
 
         image_b64 = _encode_pil_b64(image)
 
-        colon_probs = {
-            COLON_CLASS_NAMES[i]: round(float(probs[i]), 4)
-            for i in sorted(_COLON_INDICES)
-        }
-
         return JSONResponse(content={
-            "status":     "success",
+            "status":      "success",
             "cancer_type": "colon",
             "type":        PREDICTION_TYPE,
             "prediction":  pred_class,
@@ -213,10 +218,9 @@ async def predict_colon(file: UploadFile = File(...)):
                 "uncertainty_score": uncertainty,
                 "is_high_risk":      is_high_risk,
                 "all_probabilities": {
-                    cls: round(float(p), 4)
-                    for cls, p in zip(COLON_CLASS_NAMES, probs)
+                    COLON_CLASS_NAMES[i]: round(float(colon_probs[j]), 4)
+                    for j, i in enumerate(colon_indices)
                 },
-                "colon_probabilities": colon_probs,
             },
             "original_image": image_b64,
         })

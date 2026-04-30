@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   # ─── FastAPI Application ────────────────────────────────────────────────────
@@ -10,33 +8,31 @@ services:
     container_name: fastapi_app
     restart: unless-stopped
     ports:
-      - "8007:8007"
-    volumes:
-      - .:/app                        # Hot-reload en développement
+      - "8007:8000"
     environment:
       - ENV=${ENV:-development}
-      - MODEL_PATH=${MODEL_PATH:-/app/model}
+      - MODEL_PATH=${MODEL_PATH:-/app/models}
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
-      interval: 30s
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')\" || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 20s
+      retries: 5
+      start_period: 30s
 
-  # ─── Ngrok Tunnel ────────────────────────────────────────────────────────────
   ngrok:
     image: ngrok/ngrok:latest
     container_name: ngrok_tunnel
     restart: unless-stopped
     command:
       - "http"
-      - "api:8007"               
+      - "api:8000"        
       - "--log=stdout"
     environment:
-      - NGROK_AUTHTOKEN=3CXyV6ELbTBjWzk5dkKcHdK6ZGp_ZGjExJkxTYFgfQenxYfp
-      - "4042:4040"                   
+      - NGROK_AUTHTOKEN=3CYCoqthKel97RPqhohZDn5YmSm_2ju6X8WUTWKXnuLnvbvku
+    ports:
+      - "4040:4040"                
     depends_on:
       api:
         condition: service_healthy
