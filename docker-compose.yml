@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+
+  # ─── FastAPI Application ────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_app
+    restart: unless-stopped
+    ports:
+      - "8007:8007"
+    volumes:
+      - .:/app                        # Hot-reload en développement
+    environment:
+      - ENV=${ENV:-development}
+      - MODEL_PATH=${MODEL_PATH:-/app/model}
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ─── Ngrok Tunnel ────────────────────────────────────────────────────────────
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_tunnel
+    restart: unless-stopped
+    command:
+      - "http"
+      - "api:8007"               
+      - "--log=stdout"
+    environment:
+      - NGROK_AUTHTOKEN=3CXyV6ELbTBjWzk5dkKcHdK6ZGp_ZGjExJkxTYFgfQenxYfp
+      - "4042:4040"                   
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
